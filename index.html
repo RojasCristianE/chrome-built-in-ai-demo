@@ -1447,9 +1447,8 @@
 
       // Helper para interpretar estados de disponibilidad
       function interpretAvailability(avail) {
-        if (avail === 'readily') return { text: 'Listo', color: 'var(--success)', ok: true };
-        if (avail === 'after-download') return { text: 'Soportado (Requiere Descarga)', color: 'var(--warning)', ok: false };
-        if (avail === 'downloadable') return { text: 'Soportado (Descargable)', color: 'var(--warning)', ok: false };
+        if (avail === 'readily' || avail === 'available') return { text: 'Listo', color: 'var(--success)', ok: true };
+        if (avail === 'after-download' || avail === 'downloadable') return { text: 'Soportado (Requiere Descarga)', color: 'var(--warning)', ok: false };
         // 'unavailable', 'no', or any other value
         return { text: `No disponible (${avail})`, color: 'var(--error)', ok: false };
       }
