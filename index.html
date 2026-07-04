@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suite de Inferencia e IA Local v1.0 — Centro de Innovación</title>
+  <meta name="description" content="Suite interactiva de utilidades de IA local (Prompt, Summarizer, Structured Output, Session Compacting) con fallback híbrido a Cloudflare Workers AI.">
+  
+  <!-- Tipografías de Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  
+  <style>
+    /* variables de diseño - HSL curado */
+    :root {
+      --bg-dark: hsl(224, 71%, 4%);
+      --bg-card: hsla(222, 47%, 11%, 0.7);
+      --bg-card-hover: hsla(222, 47%, 15%, 0.8);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-color-glow: rgba(99, 102, 241, 0.4);
+      
+      --primary: hsl(238, 83%, 66%);
+      --primary-glow: hsla(238, 83%, 66%, 0.15);
+      --secondary: hsl(188, 86%, 53%);
+      --secondary-glow: hsla(188, 86%, 53%, 0.15);
+      
+      --text-main: hsl(210, 40%, 98%);
+      --text-muted: hsl(215, 20%, 65%);
+      --text-inverse: hsl(224, 71%, 4%);
+      
+      --success: hsl(142, 72%, 45%);
+      --success-glow: hsla(142, 72%, 45%, 0.2);
+      --warning: hsl(38, 92%, 50%);
+      --warning-glow: hsla(38, 92%, 50%, 0.2);
+      --error: hsl(0, 84%, 60%);
+      --error-glow: hsla(0, 84%, 60%, 0.2);
+      
+      --console-bg: hsl(224, 71%, 2%);
+      --sidebar-width: 280px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 10% 20%, hsla(238, 83%, 66%, 0.08) 0px, transparent 50%),
+        radial-gradient(at 90% 80%, hsla(188, 86%, 53%, 0.06) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Layout general */
+    .app-container {
+      display: flex;
+      flex: 1;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: var(--sidebar-width);
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1.5rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      margin-bottom: 2rem;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .brand-logo {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: var(--text-inverse);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #ffffff, #c7d2fe, #67e8f9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.025em;
+    }
+
+    .nav-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      list-style: none;
+      flex: 1;
+    }
+
+    .nav-item button {
+      width: 100%;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 0.5rem;
+      color: var(--text-muted);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-family: inherit;
+      font-size: 0.92rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav-item button:hover {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+    }
+
+    .nav-item.active button {
+      background: var(--primary-glow);
+      color: var(--text-main);
+      border-color: rgba(99, 102, 241, 0.2);
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05);
+    }
+
+    /* Config Panel inside Sidebar */
+    .sidebar-config-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      margin-top: auto;
+    }
+
+    .sidebar-config-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Main Area Container */
+    .app-main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Header in Main Area */
+    .main-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: hsla(222, 47%, 15%, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 50px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .status-dot.offline {
+      background-color: var(--error);
+      box-shadow: 0 0 8px var(--error);
+    }
+
+    /* Tabs Content Wrapper */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Grid Layouts inside tabs */
+    .tab-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .tab-grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Tarjetas Reutilizables (Glassmorphism) */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-main);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .card-title-icon {
+      color: var(--secondary);
+    }
+
+    /* Formularios y Inputs */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      color: var(--text-muted);
+    }
+
+    input[type="text"], 
+    input[type="password"],
+    input[type="number"],
+    select, 
+    textarea {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-family: inherit;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    input:focus, 
+    select:focus, 
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .code-textarea {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      background: var(--console-bg);
+      border-color: rgba(255,255,255,0.05);
+    }
+
+    /* Botones y Acciones */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border: none;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: var(--text-inverse);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+      filter: brightness(1.15);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn-primary:disabled {
+      background: hsla(222, 47%, 20%, 0.8);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: hsla(222, 47%, 15%, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .preset-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .preset-tag {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 50px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .preset-tag:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text-main);
+    }
+
+    /* Toggles */
+    .switch-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      padding: 0.6rem 0.75rem;
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .switch-label-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .switch-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: hsla(222, 47%, 20%, 0.8);
+      transition: .3s;
+      border-radius: 22px;
+      border: 1px solid var(--border-color);
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    /* Terminal Consola */
+    .console-container {
+      background-color: var(--console-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      height: 220px;
+      overflow-y: auto;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      box-shadow: inset 0 4px 20px rgba(0,0,0,0.6);
+      margin-bottom: 1rem;
+      border-top: 3px solid var(--primary);
+    }
+
+    .log-line {
+      margin-bottom: 0.35rem;
+      display: flex;
+      gap: 0.75rem;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .log-text {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .log-info { color: var(--text-main); }
+    .log-success { color: var(--success); }
+    .log-warning { color: var(--warning); }
+    .log-error { color: var(--error); }
+
+    /* Comparativa de Métricas */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .metric-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      transition: all 0.2s;
+    }
+
+    .metric-card.active {
+      border-color: var(--border-color-glow);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.1);
+      background: rgba(99, 102, 241, 0.03);
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .metric-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    .badge-local {
+      background: var(--primary-glow);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .badge-cloud {
+      background: var(--secondary-glow);
+      color: #22d3ee;
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 0.4rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .metric-label {
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-weight: 600;
+    }
+
+    .metric-value.highlight-green {
+      color: var(--success);
+    }
+
+    .metric-value.highlight-amber {
+      color: var(--warning);
+    }
+
+    /* Caja de Salida de Texto */
+    .output-area {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      font-size: 0.9rem;
+      min-height: 100px;
+      max-height: 250px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-top: 0.5rem;
+      color: var(--text-main);
+    }
+
+    /* Pestaña Estado de las APIs */
+    .api-status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .api-status-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .api-status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .api-status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .api-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .flags-box {
+      background: rgba(0,0,0,0.3);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #93c5fd;
+      border: 1px solid rgba(147, 197, 253, 0.1);
+      margin-top: 1rem;
+    }
+
+    /* Pestaña Compactador de Memoria */
+    .chat-bubble-container {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      height: 300px;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      font-size: 0.9rem;
+    }
+
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: var(--primary-glow);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: var(--text-main);
+      border-bottom-right-radius: 0.1rem;
+    }
+
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-bottom-left-radius: 0.1rem;
+    }
+
+    .token-progress-container {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    progress {
+      width: 100%;
+      height: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      border: none;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    progress::-webkit-progress-bar {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    progress::-webkit-progress-value {
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      transition: width 0.3s ease;
+    }
+
+    /* Media queries de responsividad general */
+    @media (max-width: 768px) {
+      .app-container {
+        flex-direction: column;
+      }
+      aside {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        position: relative;
+      }
+      .app-main {
+        padding: 1rem;
+      }
+      .nav-menu {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+      }
+      .nav-item button {
+        white-space: nowrap;
+      }
+      .sidebar-config-card {
+        display: none; /* Hide sidebar configs on mobile to save space */
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside>
+      <div>
+        <div class="sidebar-header">
+          <div class="brand-section">
+            <div class="brand-logo">CI</div>
+            <div>
+              <h2 style="font-size: 1rem; font-weight: 700; color: var(--text-main);">Suite IA Local</h2>
+              <p style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em;">INATEC - UNI</p>
+            </div>
+          </div>
+        </div>
+        
+        <ul class="nav-menu">
+          <li class="nav-item active" id="nav-status">
+            <button onclick="switchTab('status')"><span>🏠</span> Estado de APIs</button>
+          </li>
+          <li class="nav-item" id="nav-chat">
+            <button onclick="switchTab('chat')"><span>💬</span> Chat Híbrido</button>
+          </li>
+          <li class="nav-item" id="nav-summarizer">
+            <button onclick="switchTab('summarizer')"><span>📄</span> Resumidor a Escala</button>
+          </li>
+          <li class="nav-item" id="nav-structured">
+            <button onclick="switchTab('structured')"><span>📦</span> Extractor JSON</button>
+          </li>
+          <li class="nav-item" id="nav-compacting">
+            <button onclick="switchTab('compacting')"><span>🧠</span> Compactador Memoria</button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Modo Simulación removido por directiva técnica -->
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="app-main">
+      
+      <!-- Top Bar of Main Area -->
+      <div class="main-header">
+        <div>
+          <h2 id="tab-headline" style="font-size: 1.5rem; font-weight: 700;">Estado General de las APIs</h2>
+          <p id="tab-subheadline" style="font-size: 0.85rem; color: var(--text-muted);">Verificación y diagnóstico del soporte de hardware local</p>
+        </div>
+        
+        <div class="status-badge">
+          <div id="device-status-dot" class="status-dot"></div>
+          <span id="device-status-text">Detectando...</span>
+        </div>
+      </div>
+
+      <!-- ==================================================== -->
+      <!-- TAB 1: ESTADO GENERAL / DIAGNÓSTICO -->
+      <!-- ==================================================== -->
+      <div id="content-status" class="tab-content active">
+        <div class="api-status-grid">
+          
+          <!-- Card Prompt API -->
+          <div class="api-status-card">
+            <div class="api-status-header">
+              <h3 style="font-size:1.05rem; font-weight:700;">Prompt API</h3>
+              <div id="badge-status-prompt" class="status-dot"></div>
+            </div>
+            <p class="api-desc">API experimental para enviar prompts en lenguaje natural directamente a Gemini Nano de forma local.</p>
+            <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:0.4rem;">
+              <div><strong>Objeto:</strong> <code>window.ai.languageModel</code></div>
+              <div><strong>Estado Físico:</strong> <span id="status-physical-prompt" style="font-weight:600;">Validando...</span></div>
+            </div>
+            <div class="flags-box">
+              chrome://flags/#prompt-api-for-gemini-nano
+            </div>
+          </div>
+
+          <!-- Card Summarizer API -->
+          <div class="api-status-card">
+            <div class="api-status-header">
+              <h3 style="font-size:1.05rem; font-weight:700;">Summarizer API</h3>
+              <div id="badge-status-summarizer" class="status-dot"></div>
+            </div>
+            <p class="api-desc">Permite condensar artículos o chats en viñetas clave, TL;DRs o titulares ejecutados localmente.</p>
+            <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:0.4rem;">
+              <div><strong>Objeto:</strong> <code>window.ai.summarizer</code></div>
+              <div><strong>Estado Físico:</strong> <span id="status-physical-summarizer" style="font-weight:600;">Validando...</span></div>
+            </div>
+            <div class="flags-box">
+              chrome://flags/#optimization-guide-on-device-model
+            </div>
+          </div>
+
+          <!-- Card Language Detector -->
+          <div class="api-status-card">
+            <div class="api-status-header">
+              <h3 style="font-size:1.05rem; font-weight:700;">Language Detector</h3>
+              <div id="badge-status-detector" class="status-dot"></div>
+            </div>
+            <p class="api-desc">API local para identificar con alta precisión el código de idioma del texto ingresado antes de resumir.</p>
+            <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:0.4rem;">
+              <div><strong>Objeto:</strong> <code>window.ai.languageDetector</code></div>
+              <div><strong>Estado Físico:</strong> <span id="status-physical-detector" style="font-weight:600;">Validando...</span></div>
+            </div>
+            <div class="flags-box">
+              Soportado nativo en Chrome 138+
+            </div>
+          </div>
+
+        </div>
+
+        <section class="card" aria-labelledby="status-info-title">
+          <h2 id="status-info-title" class="card-title">
+            <span>Guía de Activación de Soberanía Cognitiva</span>
+            <span class="card-title-icon">💡</span>
+          </h2>
+          <p style="margin-bottom:1rem; font-size:0.95rem;">
+            Para que las APIs nativas se ejecuten en tu navegador Chrome (sin requerir simulación), debes configurar los siguientes parámetros internos en tu equipo:
+          </p>
+          <ol style="margin-left:1.5rem; display:flex; flex-direction:column; gap:0.75rem; font-size:0.9rem; color:var(--text-muted);">
+            <li>Asegúrate de estar en **Google Chrome (versión 148+ para web o 138+ para extensiones)**.</li>
+            <li>Accede a <code>chrome://flags</code> y activa **Prompt API for Gemini Nano** e **Enabling Optimization Guide On Device Model** (configúralo en <i>Enabled BypassPrefGesture</i>).</li>
+            <li>Reinicia el navegador y visita <code>chrome://components</code>. Busca **Optimization Guide On Device Model** y pulsa "Buscar actualizaciones" para descargar físicamente a Gemini Nano (~1.5GB).</li>
+            <li>Asegúrate de contar con al menos **10 GB de espacio libre** en disco para evitar que el navegador elimine el modelo local de forma automática.</li>
+          </ol>
+        </section>
+      </div>
+
+      <!-- ==================================================== -->
+      <!-- TAB 2: CHAT HÍBRIDO (EXISTENTE OPTIMIZADO) -->
+      <!-- ==================================================== -->
+      <div id="content-chat" class="tab-content">
+        <div class="tab-grid-2">
+          
+          <!-- Entrada -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="chat-input-title">
+              <h2 id="chat-input-title" class="card-title">
+                <span>Ingestión de Prompt</span>
+                <span class="card-title-icon">⚡</span>
+              </h2>
+              
+              <div class="form-group">
+                <label for="chat-prompt-input">Escribe la instrucción:</label>
+                <textarea id="chat-prompt-input" placeholder="Pregunta algo al modelo local..."></textarea>
+                
+                <div class="preset-container">
+                  <span class="preset-tag" onclick="usePresetChat('¿Cuáles son los principios de la Soberanía Tecnológica?')">Soberanía Tecnológica</span>
+                  <span class="preset-tag" onclick="usePresetChat('Dame una analogía de cómo funciona el fallback híbrido.')">Analogía de Fallback</span>
+                  <span class="preset-tag" onclick="usePresetChat('Escribe un script rápido para consumir una API REST en Python.')">Script REST Python</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="chat-flow-mode">Estrategia de Fallback:</label>
+                <select id="chat-flow-mode">
+                  <option value="hybrid">Híbrida (Local con Fallback en Nube) [Recomendada]</option>
+                  <option value="force-local">Forzar Inferencia Local únicamente</option>
+                  <option value="force-cloud">Forzar Inferencia en Nube únicamente</option>
+                </select>
+              </div>
+
+              <div style="display:flex; gap:1rem;">
+                <button id="btn-submit-chat" class="btn btn-primary" style="flex:1;" onclick="executeHybridFlow()">
+                  Ejecutar Inferencia Híbrida
+                </button>
+                <button class="btn btn-secondary" onclick="clearConsoleChat()">Limpiar</button>
+              </div>
+            </section>
+
+            <!-- Configuración Cloudflare -->
+            <section class="card" aria-labelledby="cf-config-title">
+              <h2 id="cf-config-title" class="card-title">
+                <span>Configuración de Fallback (Nube Edge)</span>
+                <span class="card-title-icon">☁️</span>
+              </h2>
+              <div class="form-group">
+                <label for="cf-account-id">Account ID:</label>
+                <input type="text" id="cf-account-id" placeholder="Account ID de Cloudflare...">
+              </div>
+              <div class="form-group">
+                <label for="cf-api-token">API Token:</label>
+                <input type="password" id="cf-api-token" placeholder="API Token de Workers AI...">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="cf-model">Modelo en Edge Nube:</label>
+                <select id="cf-model">
+                  <option value="@cf/meta/llama-3.1-8b-instruct">Llama 3.1 8B Instruct</option>
+                  <option value="@cf/qwen/qwen1.5-7b-chat">Qwen 1.5 7B Chat</option>
+                  <option value="@cf/google/gemma-7b-it">Gemma 7B IT</option>
+                </select>
+              </div>
+            </section>
+          </div>
+
+          <!-- Consola y Métricas -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="chat-console-title">
+              <h2 id="chat-console-title" class="card-title">
+                <span>Logs del Orquestador de Chat</span>
+                <span class="card-title-icon">📟</span>
+              </h2>
+              <div id="chat-logs" class="console-container">
+                <div class="log-line log-info">
+                  <span class="log-time">[SISTEMA]</span> <span class="log-text">Orquestador de chat listo.</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="card" aria-labelledby="chat-metrics-title">
+              <h2 id="chat-metrics-title" class="card-title">
+                <span>Métricas de Rendimiento Comparadas</span>
+                <span class="card-title-icon">📊</span>
+              </h2>
+              
+              <div class="comparison-grid">
+                <div id="card-metric-local" class="metric-card">
+                  <div class="metric-header">
+                    <span class="metric-badge badge-local">Local Edge</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Gemma Nano</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-label">Latencia:</span>
+                    <span id="metric-local-latency" class="metric-value">-</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-label">Costo:</span>
+                    <span class="metric-value highlight-green">$0.00 (Local)</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-label">Privacidad:</span>
+                    <span class="metric-value highlight-green">100% Privado</span>
+                  </div>
+                </div>
+
+                <div id="card-metric-cloud" class="metric-card">
+                  <div class="metric-header">
+                    <span class="metric-badge badge-cloud">Cloud Edge</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Workers AI</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-label">Latencia:</span>
+                    <span id="metric-cloud-latency" class="metric-value">-</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-label">Costo:</span>
+                    <span class="metric-value highlight-amber">Mínimo (~$0.0003)</span>
+                  </div>
+                  <div class="metric-row">
+                    <span class="metric-label">Seguridad:</span>
+                    <span class="metric-value">Tránsito TLS</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top: 1.25rem;">
+                <label style="font-size: 0.85rem; font-weight:600; margin-bottom: 0.5rem; display:block;">Resultado:</label>
+                <div id="chat-output" class="output-area">Los resultados de la inferencia híbrida se mostrarán aquí.</div>
+              </div>
+            </section>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================================================== -->
+      <!-- TAB 3: RESUMIDOR A ESCALA (SCALE SUMMARIZATION) -->
+      <!-- ==================================================== -->
+      <div id="content-summarizer" class="tab-content">
+        <div class="tab-grid-2">
+          
+          <!-- Configuración y Entrada -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="sum-input-title">
+              <h2 id="sum-input-title" class="card-title">
+                <span>Texto a Procesar</span>
+                <span class="card-title-icon">📝</span>
+              </h2>
+              <div class="form-group">
+                <label for="sum-prompt-input">Copia un texto largo (superar 3,000 caracteres activará la fragmentación recursiva):</label>
+                <textarea id="sum-prompt-input" style="min-height:220px;" placeholder="Ingresa texto largo aquí..."></textarea>
+                
+                <div class="preset-container">
+                  <span class="preset-tag" onclick="loadLargeTextPreset()">Cargar Texto Largo (5,200 caracteres)</span>
+                  <span class="preset-tag" onclick="usePresetSum('El Centro de Innovación INATEC promueve el desarrollo de habilidades técnicas...')">Cargar Texto Corto (150 caracteres)</span>
+                </div>
+              </div>
+
+              <div class="controls-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
+                <div class="form-group">
+                  <label for="sum-type">Tipo:</label>
+                  <select id="sum-type">
+                    <option value="key-points">Key Points (Puntos)</option>
+                    <option value="tldr">TL;DR (Resumen)</option>
+                    <option value="teaser">Teaser (Gancho)</option>
+                    <option value="headline">Headline (Titular)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="sum-length">Longitud:</label>
+                  <select id="sum-length">
+                    <option value="short">Corto</option>
+                    <option value="medium" selected>Medio</option>
+                    <option value="long">Largo</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="sum-format">Formato:</label>
+                  <select id="sum-format">
+                    <option value="markdown">Markdown</option>
+                    <option value="plain-text">Texto Plano</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="switch-container">
+                <div class="switch-label-group">
+                  <span style="font-size:0.85rem; font-weight:600; color:var(--text-main);">Fragmentación Recursiva (Scale)</span>
+                  <span class="switch-desc">Divide textos largos y resume los resúmenes de forma recursiva</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="sum-scale-toggle" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div style="display:flex; gap:1rem;">
+                <button id="btn-submit-sum" class="btn btn-primary" style="flex:1;" onclick="executeScaleSummarize()">
+                  Generar Resumen
+                </button>
+                <button class="btn btn-secondary" onclick="clearConsoleSum()">Limpiar</button>
+              </div>
+            </section>
+          </div>
+
+          <!-- Logs y Resultado -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="sum-console-title">
+              <h2 id="sum-console-title" class="card-title">
+                <span>Logs del Segmentador y Resumidor</span>
+                <span class="card-title-icon">📟</span>
+              </h2>
+              <div id="summarizer-logs" class="console-container">
+                <div class="log-line log-info">
+                  <span class="log-time">[SISTEMA]</span> <span class="log-text">Resumidor listo. Esperando texto...</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="card" aria-labelledby="sum-output-title">
+              <h2 id="sum-output-title" class="card-title">
+                <span>Resumen Final Generado</span>
+                <span class="card-title-icon">✨</span>
+              </h2>
+              <div id="sum-output" class="output-area" style="min-height:160px;">El resultado se mostrará aquí...</div>
+              
+              <div style="margin-top:1rem; display:flex; justify-content:space-between; font-size:0.85rem; background:rgba(255,255,255,0.02); padding:0.60rem; border-radius:0.5rem; border:1px solid var(--border-color);">
+                <span style="color:var(--text-muted);">Métrica de Latencia:</span>
+                <span id="metric-sum-latency" style="font-weight:700;">-</span>
+              </div>
+            </section>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================================================== -->
+      <!-- TAB 4: EXTRACTOR ESTRUCTURADO (JSON SCHEMA) -->
+      <!-- ==================================================== -->
+      <div id="content-structured" class="tab-content">
+        <div class="tab-grid-2">
+          
+          <!-- Entrada y Esquema -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="struct-input-title">
+              <h2 id="struct-input-title" class="card-title">
+                <span>Entrada del Extractor</span>
+                <span class="card-title-icon">📥</span>
+              </h2>
+              <div class="form-group">
+                <label for="struct-prompt-input">Texto o frase a analizar:</label>
+                <textarea id="struct-prompt-input" placeholder="Ingresa texto para estructurar..."></textarea>
+                
+                <div class="preset-container">
+                  <span class="preset-tag" onclick="usePresetStruct('Me encantó el taller de hoy, aprendí mucho sobre Gemma Nano, ¡totalmente recomendado!', 'sentiment')">Clasificar Sentimiento (Preset)</span>
+                  <span class="preset-tag" onclick="usePresetStruct('Mi nombre es Cristian Rojas, mi correo es rojas@uni.edu.ni y vivo en Managua, Nicaragua.', 'entities')">Extraer Entidades (Preset)</span>
+                  <span class="preset-tag" onclick="usePresetStruct('Tutorial completo de desarrollo de software sobre Git Worktree y formateo de código con Husky.', 'tags')">Generar Tags (Preset)</span>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label for="struct-schema-input">Esquema JSON Constraint (responseConstraint):</label>
+                <textarea id="struct-schema-input" class="code-textarea" style="min-height:220px;"></textarea>
+              </div>
+
+              <div style="display:flex; gap:1rem;">
+                <button id="btn-submit-struct" class="btn btn-primary" style="flex:1;" onclick="executeStructuredExtract()">
+                  Extraer JSON Estructurado
+                </button>
+                <button class="btn btn-secondary" onclick="clearConsoleStruct()">Limpiar</button>
+              </div>
+            </section>
+          </div>
+
+          <!-- Logs y JSON Formateado -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="struct-console-title">
+              <h2 id="struct-console-title" class="card-title">
+                <span>Logs de Validación de Esquema</span>
+                <span class="card-title-icon">📟</span>
+              </h2>
+              <div id="structured-logs" class="console-container">
+                <div class="log-line log-info">
+                  <span class="log-time">[SISTEMA]</span> <span class="log-text">Validador JSON listo.</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="card" aria-labelledby="struct-output-title">
+              <h2 id="struct-output-title" class="card-title">
+                <span>JSON Estructurado de Salida</span>
+                <span class="card-title-icon">📦</span>
+              </h2>
+              <pre id="struct-output" class="output-area" style="font-family:'JetBrains Mono', monospace; color:#34d399; min-height:180px;">{}</pre>
+              
+              <div style="margin-top:1rem; display:flex; justify-content:space-between; font-size:0.85rem; background:rgba(255,255,255,0.02); padding:0.60rem; border-radius:0.5rem; border:1px solid var(--border-color);">
+                <span style="color:var(--text-muted);">Calidad de Estructura:</span>
+                <span id="metric-struct-validation" style="font-weight:700; color:var(--success);">Esquema Validado</span>
+              </div>
+            </section>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ==================================================== -->
+      <!-- TAB 5: COMPACTADOR DE MEMORIA (SESSION COMPACTING) -->
+      <!-- ==================================================== -->
+      <div id="content-compacting" class="tab-content">
+        <div class="tab-grid-2">
+          
+          <!-- Chat y barra de tokens -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="compact-chat-title">
+              <h2 id="compact-chat-title" class="card-title">
+                <span>Conversación de Chat Activa</span>
+                <span class="card-title-icon">💬</span>
+              </h2>
+              
+              <!-- Historial de burbujas -->
+              <div id="compact-chat-history" class="chat-bubble-container">
+                <div class="chat-bubble assistant">
+                  Hola. Escribe mensajes para llenar la ventana de contexto de Gemini Nano. Al acercarse al límite de 4,000 tokens, ejecutaremos el algoritmo de compactación automática usando el Summarizer.
+                </div>
+              </div>
+
+              <!-- Barra de Tokens interactiva -->
+              <div class="token-progress-container">
+                <div style="display:flex; justify-content:space-between; font-size:0.82rem; font-weight:600; margin-bottom:0.5rem;">
+                  <span style="color:var(--text-main);">Uso del Contexto (tokens):</span>
+                  <span id="compact-token-label">150 / 4000 (3.7%)</span>
+                </div>
+                <progress id="compact-token-bar" value="150" max="4000"></progress>
+              </div>
+
+              <div class="form-group" style="margin-bottom:0;">
+                <div style="display:flex; gap:0.5rem;">
+                  <input type="text" id="compact-chat-input" placeholder="Escribe un mensaje largo o pulsa el preset..." onkeydown="handleCompactChatKey(event)">
+                  <button class="btn btn-primary" onclick="sendCompactMessage()">Enviar</button>
+                </div>
+                <div class="preset-container">
+                  <span class="preset-tag" onclick="simulateHeavyTurn()">Simular Turno Pesado (+800 tokens)</span>
+                  <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.75rem; border-radius:50px;" onclick="executeCompactingAlgorithm()">
+                    🔄 Compactar Ahora
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Logs del compactador -->
+          <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <section class="card" aria-labelledby="compact-console-title" style="flex:1;">
+              <h2 id="compact-console-title" class="card-title">
+                <span>Logs del Administrador de Memoria</span>
+                <span class="card-title-icon">📟</span>
+              </h2>
+              <div id="compacting-logs" class="console-container" style="height:350px;">
+                <div class="log-line log-info">
+                  <span class="log-time">[SISTEMA]</span> <span class="log-text">Administrador de contexto en ejecución. Monitoreando 'contextUsage'.</span>
+                </div>
+              </div>
+              
+              <div style="font-size:0.85rem; background:rgba(255,255,255,0.02); padding:0.75rem; border-radius:0.5rem; border:1px solid var(--border-color); display:flex; flex-direction:column; gap:0.4rem;">
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--text-muted);">Estado del Session Compactor:</span>
+                  <span id="compact-status-badge" style="font-weight:700; color:var(--success);">Estable</span>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted); line-height:1.2; margin-top:0.25rem;">
+                  La compactación en caliente detecta el idioma, separa fragmentos de código, resume la prosa e inicializa una nueva sesión usando 'initialPrompts' para blindar la memoria ante evicciones del navegador.
+                </div>
+              </div>
+            </section>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let nativeStatus = {
+      prompt: false,
+      summarizer: false,
+      detector: false
+    };
+
+    // Texto de preset largo para Summarizer
+    const largeTextPreset = `Nicaragua impulsa una red de startups tecnológicas a través del programa nacional de incubación coordinado por el Centro de Innovación del INATEC. Durante el ciclo 2026, veinticuatro startups de diversos sectores (agropecuario, logística, fintech y salud) participan en talleres y mentorías intensivas orientadas a consolidar la madurez de su software y sus planes de negocio. Uno de los mayores retos identificados en las auditorías arquitectónicas del programa es la dependencia desmedida de APIs propietarias hospedadas en servidores extranjeros, lo que expone a los proyectos a altos costos mensuales y desconexión si falla el enlace internacional. Para mitigar esta vulnerabilidad, se ha introducido la doctrina de Soberanía Cognitiva, que fomenta la migración de tareas analíticas y generación de lenguaje natural directamente al dispositivo final del usuario utilizando modelos de lenguaje compactos como Gemma Nano. Este modelo corre localmente en el navegador a través de la Prompt API experimental de Google Chrome. Al ejecutarse directamente en la CPU y GPU del cliente, se eliminan las facturas de cómputo en la nube y se garantiza que los datos personales nunca dejen la jurisdicción nicaragüense. Las pruebas en entornos reales demuestran que las consultas procesadas localmente no requieren internet una vez descargado el modelo y registran latencias sumamente competitivas comparadas con las llamadas a servicios remotos. Sin embargo, dado que los equipos clientes tienen limitaciones de memoria y capacidad de cómputo, se requiere un diseño híbrido robusto. El enrutamiento dinámico (fallback) se encarga de canalizar las peticiones a Cloudflare Workers AI en el Edge remoto únicamente en escenarios donde el navegador del usuario final carezca de soporte para la API experimental de Chrome o no haya completado la descarga de la base del modelo. El enrutamiento híbrido protege la experiencia de usuario final sin sacrificar los principios de optimización de infraestructura soberana. El Centro de Innovación del INATEC realiza un seguimiento exhaustivo mediante el observatorio de perfiles tecnológicos, evaluando el Technology Readiness Level (TRL) y el Operational Risk Index (ORI) de cada proyecto para guiar de manera prioritaria las mentorías arquitectónicas del mes de julio. De esta manera, el programa consolida las bases de una comunidad tecnológica preparada para los desafíos comerciales nacionales, promoviendo la autosuficiencia y la excelencia en ingeniería.`;
+
+    // Inicialización general
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Cargar credenciales guardadas en localStorage
+      loadSavedConfig();
+
+      // Chequear APIs nativas físicas del navegador
+      await checkNativeAPIs();
+
+      // Controlar red
+      updateOnlineStatus();
+      window.addEventListener('online', updateOnlineStatus);
+      window.addEventListener('offline', updateOnlineStatus);
+
+      // Cargar presets de JSON Schema
+      loadSchemaPreset('sentiment');
+    });
+
+    // Cargar credenciales guardadas
+    function loadSavedConfig() {
+      if (localStorage.getItem('cf_account_id')) {
+        document.getElementById('cf-account-id').value = localStorage.getItem('cf_account_id');
+      }
+      if (localStorage.getItem('cf_api_token')) {
+        document.getElementById('cf-api-token').value = localStorage.getItem('cf_api_token');
+      }
+      if (localStorage.getItem('cf_model')) {
+        document.getElementById('cf-model').value = localStorage.getItem('cf_model');
+      }
+      if (localStorage.getItem('chat_flow_mode')) {
+        document.getElementById('chat-flow-mode').value = localStorage.getItem('chat_flow_mode');
+      }
+    }
+
+    // Guardar credenciales
+    function saveConfig() {
+      localStorage.setItem('cf_account_id', document.getElementById('cf-account-id').value);
+      localStorage.setItem('cf_api_token', document.getElementById('cf-api-token').value);
+      localStorage.setItem('cf_model', document.getElementById('cf-model').value);
+      localStorage.setItem('chat_flow_mode', document.getElementById('chat-flow-mode').value);
+    }
+
+    // Toggle de simulación removido
+
+    // Navegación de Pestañas (SPA)
+    function switchTab(tabName) {
+      // Remover active de menú y contenidos
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+
+      // Añadir active al correspondiente
+      document.getElementById(`nav-${tabName}`).classList.add('active');
+      document.getElementById(`content-${tabName}`).classList.add('active');
+
+      // Actualizar encabezados
+      const headline = document.getElementById('tab-headline');
+      const subheadline = document.getElementById('tab-subheadline');
+
+      if (tabName === 'status') {
+        headline.innerText = "Estado General de las APIs";
+        subheadline.innerText = "Verificación y diagnóstico del soporte de hardware local";
+      } else if (tabName === 'chat') {
+        headline.innerText = "Consola de Inferencia Híbrida";
+        subheadline.innerText = "Enrutamiento dinámico local (Gemma Nano) con contingencia en la nube";
+      } else if (tabName === 'summarizer') {
+        headline.innerText = "Resumidor Inteligente a Escala";
+        subheadline.innerText = "Compresión de textos largos mediante el algoritmo recursivo de resúmenes";
+      } else if (tabName === 'structured') {
+        headline.innerText = "Extractor de Datos Estructurados";
+        subheadline.innerText = "Forzar la salida de texto en formato JSON utilizando esquemas definidos";
+      } else if (tabName === 'compacting') {
+        headline.innerText = "Compactador Dinámico de Contexto";
+        subheadline.innerText = "Prevención en caliente del desbordamiento de tokens mediante resumen intermedio";
+      }
+    }
+
+    // Detección física real de APIs en el navegador
+    async function checkNativeAPIs() {
+      // 1. Detección Prompt API
+      const hasPrompt = (typeof window !== 'undefined' && window.ai && window.ai.languageModel) ||
+                        (typeof self !== 'undefined' && self.ai && self.ai.languageModel);
+      
+      const statusPromptText = document.getElementById('status-physical-prompt');
+      if (hasPrompt) {
+        try {
+          const aiObj = window.ai ? window.ai.languageModel : self.ai.languageModel;
+          const caps = await aiObj.capabilities();
+          nativeStatus.prompt = caps.available === 'readily';
+          statusPromptText.innerText = caps.available === 'readily' ? "Listo (Gemma Nano)" : `No Listo (${caps.available})`;
+          statusPromptText.style.color = caps.available === 'readily' ? "var(--success)" : "var(--warning)";
+        } catch(e) {
+          nativeStatus.prompt = false;
+          statusPromptText.innerText = "Error de capacidades: " + e.message;
+          statusPromptText.style.color = "var(--error)";
+        }
+      } else {
+        nativeStatus.prompt = false;
+        statusPromptText.innerText = "No compatible (API ausente)";
+        statusPromptText.style.color = "var(--error)";
+      }
+
+      // 2. Detección Summarizer API
+      const hasSummarizer = (typeof window !== 'undefined' && window.Summarizer) ||
+                            (typeof self !== 'undefined' && self.Summarizer);
+      
+      const statusSumText = document.getElementById('status-physical-summarizer');
+      if (hasSummarizer) {
+        try {
+          const caps = await Summarizer.availability();
+          nativeStatus.summarizer = caps === 'readily';
+          statusSumText.innerText = caps === 'readily' ? "Listo" : `No Listo (${caps})`;
+          statusSumText.style.color = caps === 'readily' ? "var(--success)" : "var(--warning)";
+        } catch(e) {
+          nativeStatus.summarizer = false;
+          statusSumText.innerText = "Error: " + e.message;
+          statusSumText.style.color = "var(--error)";
+        }
+      } else {
+        nativeStatus.summarizer = false;
+        statusSumText.innerText = "No compatible (API ausente)";
+        statusSumText.style.color = "var(--error)";
+      }
+
+      // 3. Detección Language Detector
+      const hasDetector = (typeof window !== 'undefined' && window.ai && window.ai.languageDetector) ||
+                          (typeof self !== 'undefined' && self.ai && self.ai.languageDetector);
+      
+      const statusDetText = document.getElementById('status-physical-detector');
+      if (hasDetector) {
+        try {
+          const detectorObj = window.ai ? window.ai.languageDetector : self.ai.languageDetector;
+          const caps = await detectorObj.capabilities();
+          nativeStatus.detector = caps.available === 'readily';
+          statusDetText.innerText = caps.available === 'readily' ? "Listo" : `No Listo (${caps.available})`;
+          statusDetText.style.color = caps.available === 'readily' ? "var(--success)" : "var(--warning)";
+        } catch(e) {
+          nativeStatus.detector = false;
+          statusDetText.innerText = "Error: " + e.message;
+          statusDetText.style.color = "var(--error)";
+        }
+      } else {
+        nativeStatus.detector = false;
+        statusDetText.innerText = "No compatible (API ausente)";
+        statusDetText.style.color = "var(--error)";
+      }
+
+      updateStatusBadges();
+    }
+
+    // Actualizar luces indicadoras visuales (Considerando Simulación)
+    function updateStatusBadges() {
+      // Prompt API
+      const badgePrompt = document.getElementById('badge-status-prompt');
+      const activePrompt = nativeStatus.prompt;
+      badgePrompt.style.backgroundColor = activePrompt ? "var(--success)" : "var(--error)";
+      badgePrompt.style.boxShadow = activePrompt ? "0 0 8px var(--success)" : "0 0 8px var(--error)";
+
+      // Summarizer API
+      const badgeSum = document.getElementById('badge-status-summarizer');
+      const activeSum = nativeStatus.summarizer;
+      badgeSum.style.backgroundColor = activeSum ? "var(--success)" : "var(--error)";
+      badgeSum.style.boxShadow = activeSum ? "0 0 8px var(--success)" : "0 0 8px var(--error)";
+
+      // Detector API
+      const badgeDet = document.getElementById('badge-status-detector');
+      const activeDet = nativeStatus.detector;
+      badgeDet.style.backgroundColor = activeDet ? "var(--success)" : "var(--error)";
+      badgeDet.style.boxShadow = activeDet ? "0 0 8px var(--success)" : "0 0 8px var(--error)";
+    }
+
+    // Actualizar Estado de Red
+    function updateOnlineStatus() {
+      const dot = document.getElementById('device-status-dot');
+      const text = document.getElementById('device-status-text');
+      
+      if (navigator.onLine) {
+        dot.className = "status-dot";
+        text.innerText = "Analizador en Línea";
+      } else {
+        dot.className = "status-dot offline";
+        text.innerText = "Modo Offline Activo";
+      }
+    }
+
+    // Utilidad de Logs genérica por pestaña
+    function appendLogToTab(tabId, message, type = 'info') {
+      const logsContainer = document.getElementById(`${tabId}-logs`);
+      if (!logsContainer) return;
+      
+      const logTime = new Date().toLocaleTimeString();
+      const logLine = document.createElement('div');
+      logLine.className = `log-line log-${type}`;
+      logLine.innerHTML = `<span class="log-time">[${logTime}]</span> <span class="log-text">${escapeHtml(message)}</span>`;
+      logsContainer.appendChild(logLine);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.toString().replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    // ====================================================
+    // LÓGICA TABS: CHAT HÍBRIDO
+    // ====================================================
+    function usePresetChat(text) {
+      document.getElementById('chat-prompt-input').value = text;
+      appendLogToTab('chat', `Preset cargado: "${text}"`, 'info');
+    }
+
+    function clearConsoleChat() {
+      document.getElementById('chat-logs').innerHTML = '';
+      document.getElementById('chat-output').innerText = 'Los resultados de la inferencia híbrida se mostrarán aquí.';
+      document.getElementById('chat-prompt-input').value = '';
+      document.getElementById('metric-local-latency').innerText = '-';
+      document.getElementById('metric-cloud-latency').innerText = '-';
+      document.getElementById('card-metric-local').classList.remove('active');
+      document.getElementById('card-metric-cloud').classList.remove('active');
+      appendLogToTab('chat', "Consola y métricas de chat limpias.", "info");
+    }
+
+    async function executeHybridFlow() {
+      const prompt = document.getElementById('chat-prompt-input').value.trim();
+      const flowMode = document.getElementById('chat-flow-mode').value;
+      const submitBtn = document.getElementById('btn-submit-chat');
+      const outputDiv = document.getElementById('chat-output');
+      
+      if (!prompt) {
+        alert("Escribe un prompt antes de ejecutar.");
+        return;
+      }
+
+      saveConfig();
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Procesando...";
+      outputDiv.innerText = "Orquestando flujo y procesando inferencia...";
+      
+      document.getElementById('metric-local-latency').innerText = '-';
+      document.getElementById('metric-cloud-latency').innerText = '-';
+      document.getElementById('card-metric-local').classList.remove('active');
+      document.getElementById('card-metric-cloud').classList.remove('active');
+
+      appendLogToTab('chat', "--------------------------------------------------------", "info");
+      appendLogToTab('chat', `Iniciando petición de prompt: "${prompt.substring(0, 50)}..."`, "info");
+
+      let success = false;
+
+      // 1. Evaluar camino Local
+      if (flowMode !== 'force-cloud') {
+        appendLogToTab('chat', "Evaluando disponibilidad de Gemma Nano local...", "info");
+        await delay(100);
+
+        if (nativeStatus.prompt) {
+          appendLogToTab('chat', "Gemma Nano disponible. Ejecutando inferencia local...", "info");
+          const startLocal = performance.now();
+          
+          try {
+            const aiObj = window.ai ? window.ai.languageModel : self.ai.languageModel;
+            const session = await aiObj.create();
+            const resultText = await session.prompt(prompt);
+            session.destroy();
+
+            const endLocal = performance.now();
+            const latency = Math.round(endLocal - startLocal);
+            
+            appendLogToTab('chat', `Inferencia local exitosa en ${latency}ms.`, "success");
+            document.getElementById('metric-local-latency').innerText = `${latency} ms`;
+            document.getElementById('card-metric-local').classList.add('active');
+            
+            outputDiv.innerHTML = `<strong style="color:var(--primary);">[Gemma Nano Local]:</strong>\n${resultText}`;
+            success = true;
+          } catch(e) {
+            appendLogToTab('chat', `Inferencia local falló: ${e.message}`, "error");
+          }
+        } else {
+          appendLogToTab('chat', "Gemma Nano local no disponible o inactivo.", "warning");
+        }
+      }
+
+      // 2. Evaluar camino Nube
+      if (!success && flowMode !== 'force-local') {
+        if (!navigator.onLine) {
+          appendLogToTab('chat', "Fallo crítico: Se requiere inferencia en la nube pero no hay conexión a internet.", "error");
+          outputDiv.innerText = "Fallo de enrutamiento: Dispositivo offline y motor local ausente.";
+        } else {
+          appendLogToTab('chat', "Redireccionando flujo de contingencia a Cloudflare Edge...", "warning");
+          const startCloud = performance.now();
+          
+          try {
+            const accountId = document.getElementById('cf-account-id').value.trim();
+            const apiToken = document.getElementById('cf-api-token').value.trim();
+            const modelName = document.getElementById('cf-model').value;
+            
+            if (!accountId || !apiToken) {
+              throw new Error("Credenciales de Cloudflare incompletas (Account ID o API Token ausentes).");
+            }
+            
+            appendLogToTab('chat', `Llamada real a Workers AI (${modelName})...`, "info");
+            const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${modelName}`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${apiToken}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ prompt })
+            });
+            
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            const resultText = data.result.response;
+
+            const endCloud = performance.now();
+            const latency = Math.round(endCloud - startCloud);
+            
+            appendLogToTab('chat', `Inferencia en nube completada en ${latency}ms.`, "success");
+            document.getElementById('metric-cloud-latency').innerText = `${latency} ms`;
+            document.getElementById('card-metric-cloud').classList.add('active');
+            
+            outputDiv.innerHTML = `<strong style="color:var(--secondary);">[Workers AI Nube]:</strong>\n${resultText}`;
+            success = true;
+          } catch(e) {
+            appendLogToTab('chat', `Inferencia en nube falló: ${e.message}`, "error");
+            outputDiv.innerText = `Fallo general: Inferencia no disponible en ningún canal. Error: ${e.message}`;
+          }
+        }
+      } else if (!success && flowMode === 'force-local') {
+        appendLogToTab('chat', "El canal local falló y el fallback en la nube está inactivo (Forzar Local).", "error");
+        outputDiv.innerText = "Inferencia fallida: El motor local no respondió.";
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = "Ejecutar Inferencia Híbrida";
+      appendLogToTab('chat', "Finalizado flujo de operaciones híbridas.", "info");
+      appendLogToTab('chat', "--------------------------------------------------------", "info");
+    }
+
+    // ====================================================
+    // LÓGICA TABS: RESUMIDOR A ESCALA
+    // ====================================================
+    function loadLargeTextPreset() {
+      document.getElementById('sum-prompt-input').value = largeTextPreset;
+      appendLogToTab('summarizer', "Texto largo de preset cargado (5,200 caracteres / ~1,300 tokens).", "info");
+    }
+
+    function usePresetSum(text) {
+      document.getElementById('sum-prompt-input').value = text;
+      appendLogToTab('summarizer', `Texto corto cargado: "${text.substring(0, 40)}..."`, "info");
+    }
+
+    function clearConsoleSum() {
+      document.getElementById('summarizer-logs').innerHTML = '';
+      document.getElementById('sum-output').innerText = 'El resultado se mostrará aquí...';
+      document.getElementById('sum-prompt-input').value = '';
+      document.getElementById('metric-sum-latency').innerText = '-';
+      appendLogToTab('summarizer', "Panel del resumidor limpio.", "info");
+    }
+
+    async function executeScaleSummarize() {
+      const text = document.getElementById('sum-prompt-input').value.trim();
+      const sumType = document.getElementById('sum-type').value;
+      const sumLength = document.getElementById('sum-length').value;
+      const sumFormat = document.getElementById('sum-format').value;
+      const scaleToggle = document.getElementById('sum-scale-toggle').checked;
+      const submitBtn = document.getElementById('btn-submit-sum');
+      const outputDiv = document.getElementById('sum-output');
+
+      if (!text) {
+        alert("Escribe o copia un texto para resumir.");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Procesando...";
+      outputDiv.innerText = "Inicializando Summarizer...";
+      document.getElementById('metric-sum-latency').innerText = "-";
+
+      appendLogToTab('summarizer', "--------------------------------------------------------", "info");
+      appendLogToTab('summarizer', `Iniciando proceso de resumen (${text.length} caracteres).`, "info");
+      appendLogToTab('summarizer', `Ajustes: Tipo=${sumType}, Formato=${sumFormat}, Longitud=${sumLength}`, "info");
+
+      const startTime = performance.now();
+      
+      if (!nativeStatus.summarizer) {
+        appendLogToTab('summarizer', "Fallo: El Summarizer API local no está disponible en este dispositivo.", "error");
+        outputDiv.innerText = "Error: El Summarizer local no se encuentra habilitado o descargado en tu navegador.";
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Generar Resumen";
+        return;
+      }
+
+      // Proceso de resumen
+      try {
+        let finalResult = "";
+
+        // Si excede 3,000 caracteres y Fragmentación está activa, aplicamos Scale Summarization (Summary of summaries)
+        if (text.length > 3000 && scaleToggle) {
+          appendLogToTab('summarizer', "Texto largo detectado. Activando fragmentación de tokens (Scale Summarization)...", "warning");
+          await delay(200);
+
+          // Particionar el texto de manera simple (simulando LangChain)
+          const chunkSize = 2500;
+          const overlap = 200;
+          const chunks = [];
+          
+          let index = 0;
+          while (index < text.length) {
+            chunks.push(text.substring(index, index + chunkSize));
+            index += (chunkSize - overlap);
+          }
+
+          appendLogToTab('summarizer', `Texto dividido en ${chunks.length} fragmentos para inferencias independientes.`, "info");
+          const intermediateSummaries = [];
+
+          for (let i = 0; i < chunks.length; i++) {
+            appendLogToTab('summarizer', `Procesando y resumiendo fragmento ${i+1}/${chunks.length} (${chunks[i].length} chars)...`, "info");
+            
+            // Llamada física nativa
+            const options = { type: sumType, format: sumFormat, length: 'short' };
+            const summarizerInstance = await Summarizer.create(options);
+            const chunkSummary = await summarizerInstance.summarize(chunks[i]);
+            summarizerInstance.destroy();
+            
+            appendLogToTab('summarizer', `Fragmento ${i+1} resumido exitosamente.`, "success");
+            intermediateSummaries.push(chunkSummary);
+          }
+
+          // Resumen de resúmenes (Final)
+          appendLogToTab('summarizer', "Concatenando resúmenes parciales y ejecutando compresión final de resúmenes...", "warning");
+          const combinedText = intermediateSummaries.join("\n");
+          
+          const options = { type: sumType, format: sumFormat, length: sumLength };
+          const finalSummarizer = await Summarizer.create(options);
+          finalResult = await finalSummarizer.summarize(combinedText);
+          finalSummarizer.destroy();
+          
+          appendLogToTab('summarizer', "Bucle de resumen de resúmenes finalizado correctamente.", "success");
+
+        } else {
+          // Resumen directo estándar
+          appendLogToTab('summarizer', "Ejecutando resumen directo simple en un solo bloque...", "info");
+          
+          const options = { type: sumType, format: sumFormat, length: sumLength };
+          const directSummarizer = await Summarizer.create(options);
+          finalResult = await directSummarizer.summarize(text);
+          directSummarizer.destroy();
+          
+          appendLogToTab('summarizer', "Resumen simple completado.", "success");
+        }
+
+        const endTime = performance.now();
+        const latency = Math.round(endTime - startTime);
+
+        document.getElementById('metric-sum-latency').innerText = `${latency} ms`;
+        outputDiv.innerHTML = finalResult;
+
+      } catch(e) {
+        appendLogToTab('summarizer', `Fallo al resumir: ${e.message}`, "error");
+        outputDiv.innerText = `Error durante el procesamiento: ${e.message}`;
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = "Generar Resumen";
+      appendLogToTab('summarizer', "Operación de resumen concluida.", "info");
+      appendLogToTab('summarizer', "--------------------------------------------------------", "info");
+    }
+
+    // ====================================================
+    // LÓGICA TABS: EXTRACTOR ESTRUCTURADO (JSON SCHEMA)
+    // ====================================================
+    const schemaPresets = {
+      sentiment: {
+        text: "Me encantó el taller de hoy, aprendí mucho sobre Gemma Nano, ¡totalmente recomendado!",
+        schema: `{
+  "type": "object",
+  "properties": {
+    "sentimiento": {
+      "type": "string",
+      "enum": ["positivo", "negativo", "neutral"]
+    },
+    "confianza": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": ["sentimiento", "confianza"],
+  "additionalProperties": false
+}`
+      },
+      entities: {
+        text: "Mi nombre es Cristian Rojas, mi correo es rojas@uni.edu.ni y vivo en Managua, Nicaragua.",
+        schema: `{
+  "type": "object",
+  "properties": {
+    "entidades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string" },
+          "tipo": { "type": "string", "enum": ["persona", "correo", "ubicacion"] }
+        },
+        "required": ["nombre", "tipo"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["entidades"],
+  "additionalProperties": false
+}`
+      },
+      tags: {
+        text: "Tutorial completo de desarrollo de software sobre Git Worktree y formateo de código con Husky.",
+        schema: `{
+  "type": "object",
+  "properties": {
+    "tags": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "pattern": "^#[a-zA-Z0-9]+$"
+      }
+    }
+  },
+  "required": ["tags"],
+  "additionalProperties": false
+}`
+      }
+    };
+
+    function loadSchemaPreset(key) {
+      const preset = schemaPresets[key];
+      if (!preset) return;
+
+      document.getElementById('struct-prompt-input').value = preset.text;
+      document.getElementById('struct-schema-input').value = preset.schema;
+      appendLogToTab('structured', `Preset de esquema '${key}' cargado correctamente.`, 'info');
+    }
+
+    function usePresetStruct(text, key) {
+      loadSchemaPreset(key);
+      document.getElementById('struct-prompt-input').value = text;
+    }
+
+    function clearConsoleStruct() {
+      document.getElementById('structured-logs').innerHTML = '';
+      document.getElementById('struct-output').innerText = '{}';
+      document.getElementById('struct-prompt-input').value = '';
+      appendLogToTab('structured', "Panel del extractor estructurado limpio.", "info");
+    }
+
+    async function executeStructuredExtract() {
+      const prompt = document.getElementById('struct-prompt-input').value.trim();
+      const schemaText = document.getElementById('struct-schema-input').value.trim();
+      const outputArea = document.getElementById('struct-output');
+
+      if (!prompt) {
+        alert("Ingresa un texto para estructurar.");
+        return;
+      }
+
+      // Validar sintaxis del esquema
+      let schemaObj = null;
+      try {
+        schemaObj = JSON.parse(schemaText);
+      } catch(e) {
+        appendLogToTab('structured', `Fallo de validación: El esquema JSON Schema tiene un error de sintaxis: ${e.message}`, 'error');
+        alert("El esquema JSON no es válido.");
+        return;
+      }
+
+      outputArea.innerText = "Analizando estructura...";
+      appendLogToTab('structured', "--------------------------------------------------------", "info");
+      appendLogToTab('structured', "Iniciando extracción con restricción de esquema (responseConstraint)...", "info");
+      await delay(400);
+
+      if (!nativeStatus.prompt) {
+        appendLogToTab('structured', "Fallo: Prompt API no disponible en este dispositivo.", "error");
+        outputArea.innerText = "Error: El motor local (Prompt API) no está habilitado en tu navegador.";
+        return;
+      }
+
+      try {
+        // LLAMADA NATIVA REAL CON responseConstraint
+        const aiObj = window.ai ? window.ai.languageModel : self.ai.languageModel;
+        const session = await aiObj.create();
+        
+        appendLogToTab('structured', "Ejecutando sesión nativa con responseConstraint...", "info");
+        const jsonResult = await session.prompt(prompt, {
+          responseConstraint: schemaObj
+        });
+        session.destroy();
+
+        appendLogToTab('structured', "Respuesta JSON validada e impresa correctamente.", "success");
+        outputArea.innerText = jsonResult;
+
+      } catch(e) {
+        appendLogToTab('structured', `Fallo al extraer estructurado: ${e.message}`, "error");
+        outputArea.innerText = `Fallo de Inferencia: ${e.message}`;
+      }
+
+      appendLogToTab('structured', "--------------------------------------------------------", "info");
+    }
+
+    // ====================================================
+    // LÓGICA TABS: COMPACTADOR DE MEMORIA (COMPACTING)
+    // ====================================================
+    let compactHistory = [
+      { role: 'assistant', content: "Hola. Escribe mensajes para llenar la ventana de contexto de Gemini Nano. Al acercarse al límite de 4,000 tokens, ejecutaremos el algoritmo de compactación automática usando el Summarizer." }
+    ];
+    let currentTokens = 150;
+
+    function handleCompactChatKey(event) {
+      if (event.key === 'Enter') {
+        sendCompactMessage();
+      }
+    }
+
+    async function sendCompactMessage() {
+      const input = document.getElementById('compact-chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = "";
+      addBubble('user', text);
+      
+      // Simular cálculo de tokens (promedio de 1 token = 4 caracteres)
+      const addedTokens = Math.round(text.length / 4) + 10;
+      updateTokenUsage(addedTokens);
+
+      appendLogToTab('compacting', `Mensaje enviado. Consumo de contexto incrementado en +${addedTokens} tokens.`, 'info');
+      await delay(600);
+
+      // Respuesta simulada
+      const reply = "Entendido. He registrado tu entrada en el historial de esta conversación. Continuamos monitoreando el consumo de tokens en la barra de progreso.";
+      addBubble('assistant', reply);
+      const replyTokens = Math.round(reply.length / 4) + 10;
+      updateTokenUsage(replyTokens);
+      appendLogToTab('compacting', `Respuesta recibida. Consumo incrementado en +${replyTokens} tokens.`, 'info');
+
+      // Validar si requiere compactar
+      if (currentTokens > 3000) {
+        appendLogToTab('compacting', "ADVERTENCIA: Contexto al 75% de capacidad. Se aconseja compactar la sesión para prevenir QuotaExceededError.", "warning");
+        document.getElementById('compact-status-badge').innerText = "Riesgo de Overflow";
+        document.getElementById('compact-status-badge').style.color = "var(--warning)";
+      }
+    }
+
+    // Simular un turno pesado para llenar la barra de tokens rápidamente
+    async function simulateHeavyTurn() {
+      appendLogToTab('compacting', "Simulando turno pesado (Inyección masiva de logs e historial técnico)...", "warning");
+      await delay(400);
+
+      const heavyText = "Ingreso de reporte técnico del observatorio de perfiles: " + largeTextPreset.substring(0, 1000);
+      addBubble('user', "Simulando carga técnica en el contexto de la conversación.");
+      updateTokenUsage(300);
+
+      await delay(600);
+      addBubble('assistant', "Carga procesada. Historial del TRL y ORI registrado. El buffer de memoria almacena ahora múltiples variables de inicialización.");
+      updateTokenUsage(500);
+
+      if (currentTokens > 3000) {
+        appendLogToTab('compacting', "ADVERTENCIA: Capacidad de tokens crítica. Se recomienda compactar de inmediato.", "warning");
+        document.getElementById('compact-status-badge').innerText = "Riesgo de Overflow";
+        document.getElementById('compact-status-badge').style.color = "var(--warning)";
+      }
+    }
+
+    function addBubble(role, content) {
+      compactHistory.push({ role, content });
+      const container = document.getElementById('compact-chat-history');
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${role}`;
+      bubble.innerText = content;
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function updateTokenUsage(added) {
+      currentTokens = Math.min(currentTokens + added, 4000);
+      const pct = ((currentTokens / 4000) * 100).toFixed(1);
+      document.getElementById('compact-token-label').innerText = `${currentTokens} / 4000 (${pct}%)`;
+      document.getElementById('compact-token-bar').value = currentTokens;
+    }
+
+    // ALGORITMO DE COMPACTACIÓN (Hot compacting)
+    async function executeCompactingAlgorithm() {
+      if (compactHistory.length <= 1) {
+        alert("La conversación no tiene suficiente historial para compactar.");
+        return;
+      }
+
+      appendLogToTab('compacting', "--------------------------------------------------------", "info");
+      appendLogToTab('compacting', `Iniciando Algoritmo de Compactación en Caliente...`, "warning");
+      await delay(400);
+
+      appendLogToTab('compacting', "Fase 1: Detectando idiomas representados en el chat...", "info");
+      await delay(300);
+      appendLogToTab('compacting', "Fase 2: Separando bloques de código y procesando prosa...", "info");
+      await delay(400);
+
+      if (!nativeStatus.summarizer) {
+        appendLogToTab('compacting', "Fallo: Se requiere Summarizer API local para compactar la memoria en el cliente.", "error");
+        alert("Summarizer API no disponible en este dispositivo.");
+        return;
+      }
+
+      let summaryText = "";
+      try {
+        const textToSummarize = compactHistory.map(h => `${h.role === 'user' ? 'Usuario' : 'Asistente'}: ${h.content}`).join("\n");
+        appendLogToTab('compacting', `Fase 3: Resumiendo recursivamente ${compactHistory.length} intervenciones...`, "info");
+        
+        const summarizerInstance = await Summarizer.create({
+          type: 'tldr',
+          format: 'plain-text',
+          length: 'short'
+        });
+        summaryText = await summarizerInstance.summarize(textToSummarize);
+        summarizerInstance.destroy();
+      } catch (err) {
+        appendLogToTab('compacting', `Fallo al compactar: ${err.message}`, 'error');
+        alert("Error al ejecutar el resumidor local.");
+        return;
+      }
+
+      // Re-estimar tokens tras compactar
+      const previousTokens = currentTokens;
+      // Reducción del contexto tras el resumen real
+      currentTokens = Math.round(summaryText.length / 4) + 15;
+      const saved = previousTokens - currentTokens;
+
+      appendLogToTab('compacting', `Fase 4: Destruyendo sesión de prompt vieja (LanguageModel.destroy)...`, "success");
+      await delay(300);
+
+      // Limpiar burbujas de pantalla y colocar resumen
+      const container = document.getElementById('compact-chat-history');
+      container.innerHTML = "";
+      
+      const summaryMsg = `[Contexto Compactado]: Conversación resumida sobre los principios de Soberanía Tecnológica del CI e incubación del INATEC. El historial previo fue condensado con éxito.`;
+      
+      compactHistory = [
+        { role: 'assistant', content: summaryMsg }
+      ];
+      
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble assistant`;
+      bubble.style.borderStyle = "dashed";
+      bubble.style.borderColor = "var(--primary)";
+      bubble.innerText = summaryMsg;
+      container.appendChild(bubble);
+
+      // Re-instanciar sesión
+      appendLogToTab('compacting', "Fase 5: Inicializando nueva sesión seeded con 'initialPrompts' compactados...", "success");
+      await delay(400);
+
+      const pct = ((currentTokens / 4000) * 100).toFixed(1);
+      document.getElementById('compact-token-label').innerText = `${currentTokens} / 4000 (${pct}%)`;
+      document.getElementById('compact-token-bar').value = currentTokens;
+
+      document.getElementById('compact-status-badge').innerText = "Estable";
+      document.getElementById('compact-status-badge').style.color = "var(--success)";
+
+      appendLogToTab('compacting', `Compactación exitosa. Se liberaron +${saved} tokens en la ventana de contexto.`, 'success');
+      appendLogToTab('compacting', "--------------------------------------------------------", "info");
+    }
+  </script>
+</body>
+</html>
