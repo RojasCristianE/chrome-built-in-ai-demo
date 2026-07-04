@@ -1438,14 +1438,33 @@
 
     // Detección física real de APIs en el navegador
     async function checkNativeAPIs() {
+      console.group('[CI Demo] Diagnóstico de APIs Built-in');
+      console.log('Chrome:', navigator.userAgent.match(/Chrome\/([\d.]+)/)?.[1]);
+      console.log('LanguageModel global:', typeof LanguageModel);
+      console.log('Summarizer global:', typeof Summarizer);
+      console.log('LanguageDetector global:', typeof LanguageDetector);
+      console.log('window.ai:', typeof window.ai);
+
+      // Helper para interpretar estados de disponibilidad
+      function interpretAvailability(avail) {
+        if (avail === 'readily') return { text: 'Listo', color: 'var(--success)', ok: true };
+        if (avail === 'after-download') return { text: 'Soportado (Requiere Descarga)', color: 'var(--warning)', ok: false };
+        if (avail === 'downloadable') return { text: 'Soportado (Descargable)', color: 'var(--warning)', ok: false };
+        // 'unavailable', 'no', or any other value
+        return { text: `No disponible (${avail})`, color: 'var(--error)', ok: false };
+      }
+
       // 1. Detección Prompt API
       const statusPromptText = document.getElementById('status-physical-prompt');
       try {
         const avail = await getLanguageModelAvailability();
-        nativeStatus.prompt = (avail === 'readily');
-        statusPromptText.innerText = avail === 'readily' ? "Listo (Gemma Nano)" : (avail === 'after-download' ? "Soportado (Requiere Descarga)" : `No Listo (${avail})`);
-        statusPromptText.style.color = avail === 'readily' ? "var(--success)" : "var(--warning)";
+        console.log('Prompt API availability:', avail);
+        const info = interpretAvailability(avail);
+        nativeStatus.prompt = info.ok;
+        statusPromptText.innerText = info.ok ? "Listo (Gemma Nano)" : info.text;
+        statusPromptText.style.color = info.color;
       } catch(e) {
+        console.error('Prompt API error:', e);
         nativeStatus.prompt = false;
         statusPromptText.innerText = "Error: " + e.message;
         statusPromptText.style.color = "var(--error)";
@@ -1455,10 +1474,13 @@
       const statusSumText = document.getElementById('status-physical-summarizer');
       try {
         const avail = await getSummarizerAvailability();
-        nativeStatus.summarizer = (avail === 'readily');
-        statusSumText.innerText = avail === 'readily' ? "Listo" : (avail === 'after-download' ? "Soportado (Requiere Descarga)" : `No Listo (${avail})`);
-        statusSumText.style.color = avail === 'readily' ? "var(--success)" : "var(--warning)";
+        console.log('Summarizer API availability:', avail);
+        const info = interpretAvailability(avail);
+        nativeStatus.summarizer = info.ok;
+        statusSumText.innerText = info.ok ? "Listo" : info.text;
+        statusSumText.style.color = info.color;
       } catch(e) {
+        console.error('Summarizer API error:', e);
         nativeStatus.summarizer = false;
         statusSumText.innerText = "Error: " + e.message;
         statusSumText.style.color = "var(--error)";
@@ -1468,14 +1490,20 @@
       const statusDetText = document.getElementById('status-physical-detector');
       try {
         const avail = await getLanguageDetectorAvailability();
-        nativeStatus.detector = (avail === 'readily');
-        statusDetText.innerText = avail === 'readily' ? "Listo" : (avail === 'after-download' ? "Soportado (Requiere Descarga)" : `No Listo (${avail})`);
-        statusDetText.style.color = avail === 'readily' ? "var(--success)" : "var(--warning)";
+        console.log('Language Detector availability:', avail);
+        const info = interpretAvailability(avail);
+        nativeStatus.detector = info.ok;
+        statusDetText.innerText = info.ok ? "Listo" : info.text;
+        statusDetText.style.color = info.color;
       } catch(e) {
+        console.error('Language Detector error:', e);
         nativeStatus.detector = false;
         statusDetText.innerText = "Error: " + e.message;
         statusDetText.style.color = "var(--error)";
       }
+
+      console.log('Estado final:', JSON.stringify(nativeStatus));
+      console.groupEnd();
 
       updateStatusBadges();
     }
