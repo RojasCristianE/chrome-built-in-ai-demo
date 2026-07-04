@@ -816,7 +816,7 @@
             </div>
             <p class="api-desc">API experimental para enviar prompts en lenguaje natural directamente a Gemini Nano de forma local.</p>
             <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:0.4rem;">
-              <div><strong>Objeto:</strong> <code>window.ai.languageModel</code></div>
+              <div><strong>Objeto:</strong> <code>LanguageModel</code> (o <code>ai.languageModel</code>)</div>
               <div><strong>Estado Físico:</strong> <span id="status-physical-prompt" style="font-weight:600;">Validando...</span></div>
             </div>
             <div class="flags-box">
@@ -832,7 +832,7 @@
             </div>
             <p class="api-desc">Permite condensar artículos o chats en viñetas clave, TL;DRs o titulares ejecutados localmente.</p>
             <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:0.4rem;">
-              <div><strong>Objeto:</strong> <code>window.ai.summarizer</code></div>
+              <div><strong>Objeto:</strong> <code>Summarizer</code> (o <code>ai.summarizer</code>)</div>
               <div><strong>Estado Físico:</strong> <span id="status-physical-summarizer" style="font-weight:600;">Validando...</span></div>
             </div>
             <div class="flags-box">
@@ -848,7 +848,7 @@
             </div>
             <p class="api-desc">API local para identificar con alta precisión el código de idioma del texto ingresado antes de resumir.</p>
             <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:0.4rem;">
-              <div><strong>Objeto:</strong> <code>window.ai.languageDetector</code></div>
+              <div><strong>Objeto:</strong> <code>LanguageDetector</code> (o <code>ai.languageDetector</code>)</div>
               <div><strong>Estado Físico:</strong> <span id="status-physical-detector" style="font-weight:600;">Validando...</span></div>
             </div>
             <div class="flags-box">
@@ -1265,6 +1265,99 @@
       detector: false
     };
 
+    // Helper functions to handle standard and legacy APIs for Prompt API, Summarizer and Language Detector
+    async function getLanguageModelAvailability() {
+      if (typeof LanguageModel !== 'undefined' && typeof LanguageModel.availability === 'function') {
+        return await LanguageModel.availability();
+      }
+      const aiObj = (typeof window !== 'undefined' && window.ai && window.ai.languageModel) ||
+                    (typeof self !== 'undefined' && self.ai && self.ai.languageModel);
+      if (aiObj) {
+        if (typeof aiObj.capabilities === 'function') {
+          const caps = await aiObj.capabilities();
+          return caps.available;
+        } else if (typeof aiObj.availability === 'function') {
+          return await aiObj.availability();
+        }
+      }
+      return 'no';
+    }
+
+    async function createLanguageModelSession(options = {}) {
+      if (typeof LanguageModel !== 'undefined') {
+        return await LanguageModel.create(options);
+      }
+      const aiObj = (typeof window !== 'undefined' && window.ai && window.ai.languageModel) ||
+                    (typeof self !== 'undefined' && self.ai && self.ai.languageModel);
+      if (aiObj) {
+        return await aiObj.create(options);
+      }
+      throw new Error("Prompt API (LanguageModel) no está disponible.");
+    }
+
+    async function getSummarizerAvailability() {
+      if (typeof Summarizer !== 'undefined' && typeof Summarizer.availability === 'function') {
+        return await Summarizer.availability();
+      }
+      const aiObj = (typeof window !== 'undefined' && window.ai && window.ai.summarizer) ||
+                    (typeof self !== 'undefined' && self.ai && self.ai.summarizer);
+      if (aiObj) {
+        if (typeof aiObj.capabilities === 'function') {
+          const caps = await aiObj.capabilities();
+          return caps.available;
+        } else if (typeof aiObj.availability === 'function') {
+          return await aiObj.availability();
+        }
+      }
+      return 'no';
+    }
+
+    async function createSummarizerSession(options = {}) {
+      if (typeof Summarizer !== 'undefined') {
+        return await Summarizer.create(options);
+      }
+      const aiObj = (typeof window !== 'undefined' && window.ai && window.ai.summarizer) ||
+                    (typeof self !== 'undefined' && self.ai && self.ai.summarizer);
+      if (aiObj) {
+        return await aiObj.create(options);
+      }
+      throw new Error("Summarizer API (Summarizer) no está disponible.");
+    }
+
+    async function getLanguageDetectorAvailability() {
+      if (typeof LanguageDetector !== 'undefined') {
+        if (typeof LanguageDetector.capabilities === 'function') {
+          const caps = await LanguageDetector.capabilities();
+          return caps.available;
+        } else if (typeof LanguageDetector.availability === 'function') {
+          return await LanguageDetector.availability();
+        }
+      }
+      const aiObj = (typeof window !== 'undefined' && window.ai && window.ai.languageDetector) ||
+                    (typeof self !== 'undefined' && self.ai && self.ai.languageDetector);
+      if (aiObj) {
+        if (typeof aiObj.capabilities === 'function') {
+          const caps = await aiObj.capabilities();
+          return caps.available;
+        } else if (typeof aiObj.availability === 'function') {
+          return await aiObj.availability();
+        }
+      }
+      return 'no';
+    }
+
+    async function createLanguageDetectorSession(options = {}) {
+      if (typeof LanguageDetector !== 'undefined') {
+        return await LanguageDetector.create(options);
+      }
+      const aiObj = (typeof window !== 'undefined' && window.ai && window.ai.languageDetector) ||
+                    (typeof self !== 'undefined' && self.ai && self.ai.languageDetector);
+      if (aiObj) {
+        return await aiObj.create(options);
+      }
+      throw new Error("Language Detector API no está disponible.");
+    }
+
     // Texto de preset largo para Summarizer
     const largeTextPreset = `Nicaragua impulsa una red de startups tecnológicas a través del programa nacional de incubación coordinado por el Centro de Innovación del INATEC. Durante el ciclo 2026, veinticuatro startups de diversos sectores (agropecuario, logística, fintech y salud) participan en talleres y mentorías intensivas orientadas a consolidar la madurez de su software y sus planes de negocio. Uno de los mayores retos identificados en las auditorías arquitectónicas del programa es la dependencia desmedida de APIs propietarias hospedadas en servidores extranjeros, lo que expone a los proyectos a altos costos mensuales y desconexión si falla el enlace internacional. Para mitigar esta vulnerabilidad, se ha introducido la doctrina de Soberanía Cognitiva, que fomenta la migración de tareas analíticas y generación de lenguaje natural directamente al dispositivo final del usuario utilizando modelos de lenguaje compactos como Gemma Nano. Este modelo corre localmente en el navegador a través de la Prompt API experimental de Google Chrome. Al ejecutarse directamente en la CPU y GPU del cliente, se eliminan las facturas de cómputo en la nube y se garantiza que los datos personales nunca dejen la jurisdicción nicaragüense. Las pruebas en entornos reales demuestran que las consultas procesadas localmente no requieren internet una vez descargado el modelo y registran latencias sumamente competitivas comparadas con las llamadas a servicios remotos. Sin embargo, dado que los equipos clientes tienen limitaciones de memoria y capacidad de cómputo, se requiere un diseño híbrido robusto. El enrutamiento dinámico (fallback) se encarga de canalizar las peticiones a Cloudflare Workers AI en el Edge remoto únicamente en escenarios donde el navegador del usuario final carezca de soporte para la API experimental de Chrome o no haya completado la descarga de la base del modelo. El enrutamiento híbrido protege la experiencia de usuario final sin sacrificar los principios de optimización de infraestructura soberana. El Centro de Innovación del INATEC realiza un seguimiento exhaustivo mediante el observatorio de perfiles tecnológicos, evaluando el Technology Readiness Level (TRL) y el Operational Risk Index (ORI) de cada proyecto para guiar de manera prioritaria las mentorías arquitectónicas del mes de julio. De esta manera, el programa consolida las bases de una comunidad tecnológica preparada para los desafíos comerciales nacionales, promoviendo la autosuficiencia y la excelencia en ingeniería.`;
 
@@ -1346,70 +1439,41 @@
     // Detección física real de APIs en el navegador
     async function checkNativeAPIs() {
       // 1. Detección Prompt API
-      const hasPrompt = (typeof window !== 'undefined' && window.ai && window.ai.languageModel) ||
-                        (typeof self !== 'undefined' && self.ai && self.ai.languageModel);
-      
       const statusPromptText = document.getElementById('status-physical-prompt');
-      if (hasPrompt) {
-        try {
-          const aiObj = window.ai ? window.ai.languageModel : self.ai.languageModel;
-          const caps = await aiObj.capabilities();
-          nativeStatus.prompt = caps.available === 'readily';
-          statusPromptText.innerText = caps.available === 'readily' ? "Listo (Gemma Nano)" : `No Listo (${caps.available})`;
-          statusPromptText.style.color = caps.available === 'readily' ? "var(--success)" : "var(--warning)";
-        } catch(e) {
-          nativeStatus.prompt = false;
-          statusPromptText.innerText = "Error de capacidades: " + e.message;
-          statusPromptText.style.color = "var(--error)";
-        }
-      } else {
+      try {
+        const avail = await getLanguageModelAvailability();
+        nativeStatus.prompt = (avail === 'readily');
+        statusPromptText.innerText = avail === 'readily' ? "Listo (Gemma Nano)" : (avail === 'after-download' ? "Soportado (Requiere Descarga)" : `No Listo (${avail})`);
+        statusPromptText.style.color = avail === 'readily' ? "var(--success)" : "var(--warning)";
+      } catch(e) {
         nativeStatus.prompt = false;
-        statusPromptText.innerText = "No compatible (API ausente)";
+        statusPromptText.innerText = "Error: " + e.message;
         statusPromptText.style.color = "var(--error)";
       }
 
       // 2. Detección Summarizer API
-      const hasSummarizer = (typeof window !== 'undefined' && window.Summarizer) ||
-                            (typeof self !== 'undefined' && self.Summarizer);
-      
       const statusSumText = document.getElementById('status-physical-summarizer');
-      if (hasSummarizer) {
-        try {
-          const caps = await Summarizer.availability();
-          nativeStatus.summarizer = caps === 'readily';
-          statusSumText.innerText = caps === 'readily' ? "Listo" : `No Listo (${caps})`;
-          statusSumText.style.color = caps === 'readily' ? "var(--success)" : "var(--warning)";
-        } catch(e) {
-          nativeStatus.summarizer = false;
-          statusSumText.innerText = "Error: " + e.message;
-          statusSumText.style.color = "var(--error)";
-        }
-      } else {
+      try {
+        const avail = await getSummarizerAvailability();
+        nativeStatus.summarizer = (avail === 'readily');
+        statusSumText.innerText = avail === 'readily' ? "Listo" : (avail === 'after-download' ? "Soportado (Requiere Descarga)" : `No Listo (${avail})`);
+        statusSumText.style.color = avail === 'readily' ? "var(--success)" : "var(--warning)";
+      } catch(e) {
         nativeStatus.summarizer = false;
-        statusSumText.innerText = "No compatible (API ausente)";
+        statusSumText.innerText = "Error: " + e.message;
         statusSumText.style.color = "var(--error)";
       }
 
       // 3. Detección Language Detector
-      const hasDetector = (typeof window !== 'undefined' && window.ai && window.ai.languageDetector) ||
-                          (typeof self !== 'undefined' && self.ai && self.ai.languageDetector);
-      
       const statusDetText = document.getElementById('status-physical-detector');
-      if (hasDetector) {
-        try {
-          const detectorObj = window.ai ? window.ai.languageDetector : self.ai.languageDetector;
-          const caps = await detectorObj.capabilities();
-          nativeStatus.detector = caps.available === 'readily';
-          statusDetText.innerText = caps.available === 'readily' ? "Listo" : `No Listo (${caps.available})`;
-          statusDetText.style.color = caps.available === 'readily' ? "var(--success)" : "var(--warning)";
-        } catch(e) {
-          nativeStatus.detector = false;
-          statusDetText.innerText = "Error: " + e.message;
-          statusDetText.style.color = "var(--error)";
-        }
-      } else {
+      try {
+        const avail = await getLanguageDetectorAvailability();
+        nativeStatus.detector = (avail === 'readily');
+        statusDetText.innerText = avail === 'readily' ? "Listo" : (avail === 'after-download' ? "Soportado (Requiere Descarga)" : `No Listo (${avail})`);
+        statusDetText.style.color = avail === 'readily' ? "var(--success)" : "var(--warning)";
+      } catch(e) {
         nativeStatus.detector = false;
-        statusDetText.innerText = "No compatible (API ausente)";
+        statusDetText.innerText = "Error: " + e.message;
         statusDetText.style.color = "var(--error)";
       }
 
@@ -1533,8 +1597,7 @@
           const startLocal = performance.now();
           
           try {
-            const aiObj = window.ai ? window.ai.languageModel : self.ai.languageModel;
-            const session = await aiObj.create();
+            const session = await createLanguageModelSession();
             const resultText = await session.prompt(prompt);
             session.destroy();
 
@@ -1694,7 +1757,7 @@
             
             // Llamada física nativa
             const options = { type: sumType, format: sumFormat, length: 'short' };
-            const summarizerInstance = await Summarizer.create(options);
+            const summarizerInstance = await createSummarizerSession(options);
             const chunkSummary = await summarizerInstance.summarize(chunks[i]);
             summarizerInstance.destroy();
             
@@ -1707,7 +1770,7 @@
           const combinedText = intermediateSummaries.join("\n");
           
           const options = { type: sumType, format: sumFormat, length: sumLength };
-          const finalSummarizer = await Summarizer.create(options);
+          const finalSummarizer = await createSummarizerSession(options);
           finalResult = await finalSummarizer.summarize(combinedText);
           finalSummarizer.destroy();
           
@@ -1718,7 +1781,7 @@
           appendLogToTab('summarizer', "Ejecutando resumen directo simple en un solo bloque...", "info");
           
           const options = { type: sumType, format: sumFormat, length: sumLength };
-          const directSummarizer = await Summarizer.create(options);
+          const directSummarizer = await createSummarizerSession(options);
           finalResult = await directSummarizer.summarize(text);
           directSummarizer.destroy();
           
@@ -1861,8 +1924,7 @@
 
       try {
         // LLAMADA NATIVA REAL CON responseConstraint
-        const aiObj = window.ai ? window.ai.languageModel : self.ai.languageModel;
-        const session = await aiObj.create();
+        const session = await createLanguageModelSession();
         
         appendLogToTab('structured', "Ejecutando sesión nativa con responseConstraint...", "info");
         const jsonResult = await session.prompt(prompt, {
@@ -1988,8 +2050,7 @@
       try {
         const textToSummarize = compactHistory.map(h => `${h.role === 'user' ? 'Usuario' : 'Asistente'}: ${h.content}`).join("\n");
         appendLogToTab('compacting', `Fase 3: Resumiendo recursivamente ${compactHistory.length} intervenciones...`, "info");
-        
-        const summarizerInstance = await Summarizer.create({
+        const summarizerInstance = await createSummarizerSession({
           type: 'tldr',
           format: 'plain-text',
           length: 'short'
